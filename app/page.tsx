@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const agents = [
-  { id: 'NOVA', role: 'Tendencias', color: '#c7f43d', progress: 78, spriteRow: 0, tasks: ['Escaneando el radar', 'Entregando 3 tendencias', 'Tomando un café'], route: [[14, 28], [31, 49], [18, 72]] },
-  { id: 'DARWIN', role: 'Investigación', color: '#54e1d5', progress: 62, spriteRow: 2, tasks: ['Verificando una fuente', 'Revisando con Byte', 'Archivando evidencia'], route: [[34, 70], [49, 45], [38, 31]] },
-  { id: 'BYTE', role: 'Guion', color: '#ffb13b', progress: 86, spriteRow: 3, tasks: ['Escribiendo el hook #18', 'Pidiendo contexto a Darwin', 'Enviando guion a Pixel'], route: [[53, 30], [48, 57], [67, 55]] },
-  { id: 'PIXEL', role: 'Producción', color: '#a884ff', progress: 45, spriteRow: 1, tasks: ['Renderizando en 9:16', 'Recibiendo guion', 'Dejando clip en la banda'], route: [[72, 29], [65, 62], [78, 74]] },
-  { id: 'ATLAS', role: 'Distribución', color: '#ff6868', progress: 91, spriteRow: 1, tasks: ['Revisando calendario', 'Recogiendo el clip final', 'Programando YouTube'], route: [[87, 29], [83, 69], [70, 79]] },
+  { id: 'NOVA', role: 'Tendencias', color: '#c7f43d', progress: 78, spriteRow: 0, tasks: ['Rastreando tendencias', 'Compartiendo 3 hallazgos', 'Preparando café'], route: [[24, 47], [43, 53], [11, 59]] },
+  { id: 'DARWIN', role: 'Investigación', color: '#54e1d5', progress: 62, spriteRow: 2, tasks: ['Verificando una fuente', 'Revisando con Byte', 'Anotando en el pizarrón'], route: [[24, 79], [46, 65], [50, 38]] },
+  { id: 'BYTE', role: 'Guion', color: '#ffb13b', progress: 86, spriteRow: 3, tasks: ['Escribiendo el hook #18', 'Pidiendo contexto a Darwin', 'Enviando guion a Pixel'], route: [[50, 47], [50, 65], [64, 58]] },
+  { id: 'PIXEL', role: 'Producción', color: '#a884ff', progress: 45, spriteRow: 1, tasks: ['Renderizando en 9:16', 'Recibiendo el guion', 'Revisando el corte final'], route: [[75, 78], [62, 68], [75, 47]] },
+  { id: 'ATLAS', role: 'Distribución', color: '#ff6868', progress: 91, spriteRow: 1, tasks: ['Revisando calendario', 'Sincronizando con Pixel', 'Programando desde el lounge'], route: [[75, 47], [66, 57], [88, 62]] },
 ] as const;
 
 const queue = [
@@ -19,12 +19,16 @@ const queue = [
 
 type Direction = 'down' | 'up' | 'left' | 'right';
 
-function SpriteAgent({ agent, active, onClick }: { agent: typeof agents[number]; active: boolean; onClick: () => void }) {
+function SpriteAgent({ agent, active, paused, onClick }: { agent: typeof agents[number]; active: boolean; paused: boolean; onClick: () => void }) {
   const [stop, setStop] = useState(0);
   const [moving, setMoving] = useState(false);
   const [direction, setDirection] = useState<Direction>('down');
 
   useEffect(() => {
+    if (paused) {
+      setMoving(false);
+      return;
+    }
     let interval: ReturnType<typeof setInterval>;
     let rest: ReturnType<typeof setTimeout>;
     const walk = () => {
@@ -46,7 +50,7 @@ function SpriteAgent({ agent, active, onClick }: { agent: typeof agents[number];
       interval = setInterval(walk, 3900 + agent.spriteRow * 260);
     }, 700 + agent.spriteRow * 430);
     return () => { clearTimeout(start); clearTimeout(rest); clearInterval(interval); };
-  }, [agent]);
+  }, [agent, paused]);
 
   const [x, y] = agent.route[stop];
   return (
@@ -95,12 +99,14 @@ export default function Home() {
         <section className={`office ${view}`}>
           <div className="office-head"><div><small>PLANTA 01 / PRODUCCIÓN</small><h1>{view === 'oficina' ? 'La oficina nunca duerme.' : 'Flujo editorial en tiempo real.'}</h1></div><button onClick={() => setRunning(!running)}>{running ? 'Ⅱ PAUSAR TURNO' : '▶ REANUDAR'}</button></div>
           <div className={`factory-floor ${running ? 'running' : ''}`}>
-            <div className="grid-lines" />
-            <div className="room research"><span>RADAR DE IDEAS</span><div className="radar"><i /></div></div>
-            <div className="room writers"><span>MESA DE GUIONES</span><div className="desk d1"/><div className="desk d2"/></div>
-            <div className="room studio"><span>ESTUDIO VERTICAL</span><div className="screen">9:16<small>00:24</small></div></div>
-            <div className="conveyor"><i/><i/><i/><i/><i/></div>
-            {agents.map(agent => <SpriteAgent key={agent.id} agent={agent} active={selected.id === agent.id} onClick={() => setSelected(agent)} />)}
+            <div className="office-art" role="img" aria-label="Oficina pixel art rústica con ladrillo, madera, plantas y estaciones de trabajo" />
+            <div className="warm-overlay" />
+            <div className="zone-chip zone-radar"><i /> RADAR & CAFÉ</div>
+            <div className="zone-chip zone-lab"><i /> RESEARCH LAB</div>
+            <div className="zone-chip zone-story"><i /> STORY ROOM</div>
+            <div className="zone-chip zone-studio"><i /> EDIT SUITE</div>
+            <div className="zone-chip zone-lounge"><i /> LAUNCH LOUNGE</div>
+            {agents.map(agent => <SpriteAgent key={agent.id} agent={agent} active={selected.id === agent.id} paused={!running} onClick={() => setSelected(agent)} />)}
             <div className="floor-label">{view === 'oficina' ? 'TURNO AUTOMÁTICO · 08:00—22:00' : 'DESCUBRIR → VERIFICAR → ESCRIBIR → PRODUCIR → PUBLICAR'}</div>
           </div>
         </section>
