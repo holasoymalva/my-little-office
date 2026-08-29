@@ -1,5 +1,8 @@
 # My Little Office
 
+<img width="1024" height="508" alt="image" src="https://github.com/user-attachments/assets/823b61b9-8ec1-4af3-ab73-0023f7d8a445" />
+
+
 A configurable pixel-art dashboard for visualizing teams, agents, workflows, and operational status. The included demo models a software development team with these roles:
 
 - QA Engineer
