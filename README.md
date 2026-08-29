@@ -1,6 +1,6 @@
 # My Little Office
 
-<img width="1024" height="508" alt="image" src="https://github.com/user-attachments/assets/823b61b9-8ec1-4af3-ab73-0023f7d8a445" />
+<img width="1024" height="682" alt="image" src="https://github.com/user-attachments/assets/a8b6142e-998e-491a-8fbe-eaa34ae66e40" />
 
 
 A configurable pixel-art dashboard for visualizing teams, agents, workflows, and operational status. The included demo models a software development team with these roles:
