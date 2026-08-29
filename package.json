@@ -7,8 +7,11 @@
   },
   "scripts": {
     "dev": "vinext dev",
+    "agents": "node agent-runtime/src/server.ts",
+    "agents:check": "node agent-runtime/preflight.ts",
     "build": "vinext build",
     "start": "vinext start",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },
   "dependencies": {
