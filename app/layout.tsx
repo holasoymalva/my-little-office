@@ -13,22 +13,22 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Shorts Foundry — AI Content Operations',
-  description: 'Centro visual de operaciones para coordinar agentes de contenido y producir YouTube Shorts.',
+  title: 'My Little Office — Custom Team Simulator',
+  description: 'A customizable pixel-art office for visualizing teams, roles, workflows, and live operations.',
   openGraph: {
-    title: 'Shorts Foundry — AI Content Operations',
-    description: 'Una oficina pixel art donde agentes de IA investigan, escriben, producen y programan Shorts.',
+    title: 'My Little Office — Custom Team Simulator',
+    description: 'A customizable pixel-art office demo featuring a modern software development team.',
     url: 'https://shorts-foundry.malvas.chatgpt.site',
-    siteName: 'Shorts Foundry',
-    images: [{ url: 'https://shorts-foundry.malvas.chatgpt.site/og.png', width: 1200, height: 630, alt: 'Shorts Foundry AI Content Operations' }],
-    locale: 'es_MX',
+    siteName: 'My Little Office',
+    images: [{ url: 'https://shorts-foundry.malvas.chatgpt.site/assets/office/rustic-office.png', width: 1664, height: 936, alt: 'My Little Office software team simulator' }],
+    locale: 'en_US',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Shorts Foundry — AI Content Operations',
-    description: 'Una oficina pixel art donde agentes de IA coordinan la producción de Shorts.',
-    images: ['https://shorts-foundry.malvas.chatgpt.site/og.png'],
+    title: 'My Little Office — Custom Team Simulator',
+    description: 'A customizable pixel-art office demo for software development teams.',
+    images: ['https://shorts-foundry.malvas.chatgpt.site/assets/office/rustic-office.png'],
   },
 };
 
@@ -38,7 +38,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
