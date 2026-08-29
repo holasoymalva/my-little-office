@@ -1,0 +1,78 @@
+{
+  "workspaceRoot": ".workspaces",
+  "maxConcurrentTasks": 2,
+  "commandTimeoutMs": 240000,
+
+  "projects": [
+    {
+      "id": "my-little-office",
+      "name": "My Little Office",
+      "path": ".",
+      "baseBranch": "main",
+      "setup": ["npm install --no-audit --no-fund"],
+      "verify": ["npm run lint", "npm run build"],
+      "conventions": "Next.js 16 App Router on Cloudflare Workers via vinext. Dashboard content is data-driven from app/office.config.ts. Prefer editing configuration over adding components. TypeScript strict mode; no new dependencies without a strong reason."
+    }
+  ],
+
+  "agents": [
+    {
+      "id": "DEV",
+      "role": "Software Engineer",
+      "provider": "openai",
+      "specialty": "You implement features and fix bugs. You are pragmatic: you read the surrounding code first and write the smallest correct change that fully solves the problem.",
+      "skills": ["feature", "bug", "frontend", "backend"],
+      "maxIterations": 40
+    },
+    {
+      "id": "TESS",
+      "role": "QA Engineer",
+      "provider": "gemini",
+      "specialty": "You specialise in tests and regressions. You reproduce the reported problem first, add or fix the test that covers it, and only then change the implementation.",
+      "skills": ["bug", "test", "qa"],
+      "maxIterations": 32
+    },
+    {
+      "id": "LEAD",
+      "role": "Tech Lead",
+      "provider": "xai",
+      "specialty": "You handle refactors, architecture changes and risky migrations. You are conservative about blast radius and keep public interfaces stable.",
+      "skills": ["refactor", "architecture", "platform"],
+      "maxIterations": 48
+    },
+    {
+      "id": "PRIYA",
+      "role": "Product Owner",
+      "provider": "openai",
+      "specialty": "You turn loosely specified product requests into concrete, shipped changes. When a request is vague you pick the most conventional interpretation and state your assumption in the summary.",
+      "skills": ["product", "content", "copy"],
+      "maxIterations": 28
+    },
+    {
+      "id": "MGR",
+      "role": "Tech Manager",
+      "provider": "gemini",
+      "specialty": "You take on documentation, developer experience and repository housekeeping tasks.",
+      "skills": ["docs", "chore", "devex"],
+      "maxIterations": 24
+    }
+  ],
+
+  "linear": {
+    "teamKey": "",
+    "doneStateName": "In Review"
+  },
+
+  "allowedCommands": [
+    "npm", "npx", "pnpm", "yarn", "node", "tsc", "eslint", "vitest", "jest",
+    "python", "python3", "pytest", "pip", "go", "cargo", "make",
+    "git status", "git diff", "git log", "git add", "git show", "git rev-parse",
+    "ls", "cat", "head", "tail", "grep", "rg", "find", "wc", "sed", "awk", "echo", "pwd"
+  ],
+
+  "deniedPatterns": [
+    "rm -rf /", "rm -rf ~", ":(){", "mkfs", "shutdown", "reboot", "dd if=",
+    "chmod 777 /", "curl", "wget", "ssh", "scp", "sudo", "npm publish",
+    "git push", "git reset --hard origin", "crontab"
+  ]
+}
