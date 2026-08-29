@@ -56,11 +56,11 @@ export const officeConfig = {
     ],
   },
   agents: [
-    { id: 'TESS', role: 'QA Engineer', color: '#c7f43d', progress: 82, spriteRow: 0, tasks: ['Running regression tests', 'Reporting a flaky test', 'Verifying the latest fix'], route: [[24, 47], [43, 53], [11, 59]] },
-    { id: 'DEV', role: 'Software Engineer', color: '#54e1d5', progress: 64, spriteRow: 2, tasks: ['Implementing the auth flow', 'Pairing with QA', 'Pushing a pull request'], route: [[24, 79], [46, 65], [50, 38]] },
-    { id: 'PRIYA', role: 'Product Owner', color: '#ffb13b', progress: 91, spriteRow: 3, tasks: ['Refining the sprint backlog', 'Aligning acceptance criteria', 'Reviewing the product demo'], route: [[50, 47], [50, 65], [64, 58]] },
-    { id: 'LEAD', role: 'Tech Lead', color: '#a884ff', progress: 73, spriteRow: 1, tasks: ['Reviewing the architecture', 'Unblocking an engineer', 'Approving the pull request'], route: [[75, 78], [62, 68], [75, 47]] },
-    { id: 'MGR', role: 'Tech Manager', color: '#ff6868', progress: 88, spriteRow: 1, tasks: ['Checking team health', 'Planning next sprint capacity', 'Syncing with Product'], route: [[75, 47], [66, 57], [88, 62]] },
+    { id: 'TESS', role: 'QA Engineer', color: '#c7f43d', progress: 82, spriteSheet: '/assets/metrocity/qa-engineer.png', tasks: ['Running regression tests', 'Reporting a flaky test', 'Verifying the latest fix'], route: [[24, 47], [43, 53], [11, 59]] },
+    { id: 'DEV', role: 'Software Engineer', color: '#54e1d5', progress: 64, spriteSheet: '/assets/metrocity/software-engineer.png', tasks: ['Implementing the auth flow', 'Pairing with QA', 'Pushing a pull request'], route: [[24, 79], [46, 65], [50, 38]] },
+    { id: 'PRIYA', role: 'Product Owner', color: '#ffb13b', progress: 91, spriteSheet: '/assets/metrocity/product-owner.png', tasks: ['Refining the sprint backlog', 'Aligning acceptance criteria', 'Reviewing the product demo'], route: [[50, 47], [50, 65], [64, 58]] },
+    { id: 'LEAD', role: 'Tech Lead', color: '#a884ff', progress: 73, spriteSheet: '/assets/metrocity/tech-lead.png', tasks: ['Reviewing the architecture', 'Unblocking an engineer', 'Approving the pull request'], route: [[75, 78], [62, 68], [75, 47]] },
+    { id: 'MGR', role: 'Tech Manager', color: '#ff6868', progress: 88, spriteSheet: '/assets/metrocity/tech-manager.png', tasks: ['Checking team health', 'Planning next sprint capacity', 'Syncing with Product'], route: [[75, 47], [66, 57], [88, 62]] },
   ],
   activity: [
     { agent: 'TESS', message: 'passed the release suite', age: 'now', color: '#c7f43d' },

@@ -41,14 +41,14 @@ export function SpriteAgent({ agent, active, paused, onClick }: {
 
     const start = setTimeout(() => {
       walk();
-      interval = setInterval(walk, 3900 + agent.spriteRow * 260);
-    }, 700 + agent.spriteRow * 430);
+      interval = setInterval(walk, 3900 + agent.id.length * 130);
+    }, 700 + agent.id.length * 180);
 
     return () => { clearTimeout(start); clearTimeout(rest); clearInterval(interval); };
   }, [agent, paused]);
 
   const [x, y] = agent.route[stop];
-  const style = { left: `${x}%`, top: `${y}%`, '--agent': agent.color, '--row': agent.spriteRow } as CSSProperties;
+  const style = { left: `${x}%`, top: `${y}%`, '--agent': agent.color, '--sprite': `url(${agent.spriteSheet})` } as CSSProperties;
 
   return (
     <button className={`agent sprite-agent ${direction} ${moving ? 'moving' : 'resting'} ${active ? 'active' : ''}`} style={style} onClick={onClick} aria-label={`Open ${agent.id}, ${agent.role}`}>

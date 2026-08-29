@@ -62,7 +62,7 @@ export function OfficeDashboard({ config }: { config: OfficeConfig }) {
         <aside className="right-panel panel">
           <div className="panel-title"><span>◎</span> {config.labels.selectedAgent}</div>
           <div className="agent-card" style={{ '--agent': selected.color } as CSSProperties}>
-            <span className="sprite-person preview" style={{ '--row': selected.spriteRow } as CSSProperties} />
+            <span className="sprite-person preview" style={{ '--sprite': `url(${selected.spriteSheet})` } as CSSProperties} />
             <small>{selected.id}</small><h2>{selected.role}</h2><p>{selected.tasks[0]}</p>
             <div className="progress-head"><span>{config.labels.progress}</span><b>{selected.progress}%</b></div><div className="progress"><i style={{ width: `${selected.progress}%` }} /></div>
           </div>

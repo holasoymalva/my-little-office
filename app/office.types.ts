@@ -5,7 +5,7 @@ export type AgentConfig = {
   role: string;
   color: string;
   progress: number;
-  spriteRow: number;
+  spriteSheet: string;
   tasks: readonly string[];
   route: readonly Point[];
 };
