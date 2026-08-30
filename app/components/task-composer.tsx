@@ -35,6 +35,8 @@ export function TaskComposer({
   const [issues, setIssues] = useState<LinearIssue[]>([]);
   const [issuesError, setIssuesError] = useState<string | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<string>('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (mode !== 'linear' || !status.integrations.linear) return;
@@ -50,6 +52,25 @@ export function TaskComposer({
   const agent = status.agents.find((entry) => entry.id === agentId);
   const effectiveProvider = provider || agent?.provider;
   const providerReady = status.providers.find((entry) => entry.id === effectiveProvider)?.configured ?? false;
+
+  async function syncLinear() {
+    setSyncing(true);
+    setIssuesError(null);
+    setSyncMessage(null);
+    try {
+      const result = await runtimeApi.syncLinear();
+      const assigned = result.automation.lastAssigned;
+      setSyncMessage(assigned.length
+        ? `MGR assigned ${assigned.join(', ')} to idle developer agents.`
+        : 'Linear is synced. There was no eligible issue waiting for an idle developer.');
+      const refreshed = await runtimeApi.linearIssues();
+      setIssues(refreshed.issues);
+    } catch (cause) {
+      setIssuesError((cause as Error).message);
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function submit() {
     setBusy(true);
@@ -116,20 +137,34 @@ export function TaskComposer({
           ) : issuesError ? (
             <p className="notice error">{issuesError}</p>
           ) : (
-            <div className="issue-list">
-              {issues.length === 0 && <p className="notice">No open issues found.</p>}
-              {issues.map((issue) => (
-                <button
-                  key={issue.id}
-                  className={`issue ${selectedIssue === issue.identifier ? 'on' : ''}`}
-                  onClick={() => setSelectedIssue(issue.identifier)}
-                >
-                  <b>{issue.identifier}</b>
-                  <span>{issue.title}</span>
-                  <i>{issue.stateName}</i>
+            <>
+              <div className="linear-auto notice">
+                <span>
+                  <b>TECH MANAGER AUTO-ASSIGN</b>
+                  {status.integrations.linearAutomation.enabled
+                    ? ` Active · every ${Math.round(status.integrations.linearAutomation.pollIntervalMs / 1000)}s`
+                    : ' Disabled in super-agent.config.json'}
+                </span>
+                <button className="ghost" disabled={syncing} onClick={() => void syncLinear()}>
+                  {syncing ? 'SYNCING…' : 'MGR SYNC NOW'}
                 </button>
-              ))}
-            </div>
+              </div>
+              {syncMessage && <p className="notice linear-result">{syncMessage}</p>}
+              <div className="issue-list">
+                {issues.length === 0 && <p className="notice">No open issues found.</p>}
+                {issues.map((issue) => (
+                  <button
+                    key={issue.id}
+                    className={`issue ${selectedIssue === issue.identifier ? 'on' : ''}`}
+                    onClick={() => setSelectedIssue(issue.identifier)}
+                  >
+                    <b>{issue.identifier}</b>
+                    <span>{issue.title}</span>
+                    <i>{issue.stateName}</i>
+                  </button>
+                ))}
+              </div>
+            </>
           )}
 
           <div className="field-row">

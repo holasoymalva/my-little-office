@@ -12,7 +12,17 @@ export type LinearIssue = {
   stateType: string;
   priority: number;
   teamKey: string;
+  teamName: string;
   labels: string[];
+  assigneeId?: string;
+  assigneeName?: string;
+};
+
+export type LinearIssueKind = 'feature' | 'improvement' | 'bug';
+
+export type LinearIssueCreateResult = {
+  issue: LinearIssue;
+  created: boolean;
 };
 
 export function linearConfigured(): boolean {
@@ -49,8 +59,9 @@ const ISSUE_FIELDS = `
   url
   priority
   state { name type }
-  team { key }
+  team { key name }
   labels { nodes { name } }
+  assignee { id name }
 `;
 
 type RawIssue = {
@@ -61,8 +72,9 @@ type RawIssue = {
   url: string;
   priority: number | null;
   state: { name: string; type: string } | null;
-  team: { key: string } | null;
+  team: { key: string; name: string } | null;
   labels: { nodes: { name: string }[] } | null;
+  assignee: { id: string; name: string } | null;
 };
 
 function normalize(issue: RawIssue): LinearIssue {
@@ -76,16 +88,48 @@ function normalize(issue: RawIssue): LinearIssue {
     stateName: issue.state?.name ?? 'Unknown',
     stateType: issue.state?.type ?? 'unknown',
     teamKey: issue.team?.key ?? '',
+    teamName: issue.team?.name ?? '',
     labels: issue.labels?.nodes.map((label) => label.name) ?? [],
+    assigneeId: issue.assignee?.id,
+    assigneeName: issue.assignee?.name,
   };
 }
 
+function configuredTeamKey(teamKey?: string): string {
+  const key = teamKey?.trim() || env('LINEAR_TEAM_KEY').trim();
+  if (!key) throw new Error('LINEAR_TEAM_KEY is not set');
+  return key;
+}
+
+async function teamContext(teamKey?: string): Promise<{
+  id: string;
+  key: string;
+  name: string;
+  labels: { id: string; name: string }[];
+}> {
+  const key = configuredTeamKey(teamKey);
+  const data = await query<{
+    teams: { nodes: { id: string; key: string; name: string; labels: { nodes: { id: string; name: string }[] } }[] };
+  }>(
+    `query Team($key: String!) {
+      teams(filter: { key: { eq: $key } }, first: 5) {
+        nodes { id key name labels(first: 100) { nodes { id name } } }
+      }
+    }`,
+    { key },
+  );
+  const team = data.teams.nodes.find((entry) => entry.key.toLowerCase() === key.toLowerCase());
+  if (!team) throw new Error(`Linear team ${key} was not found or is not accessible`);
+  return { ...team, labels: team.labels.nodes };
+}
+
 /** Unstarted, unarchived issues — the pool the office can pick work from. */
-export async function fetchOpenIssues(teamKey?: string, limit = 25): Promise<LinearIssue[]> {
+export async function fetchOpenIssues(teamKey?: string, limit = 25, includeStarted = true): Promise<LinearIssue[]> {
   const filter: Record<string, unknown> = {
-    state: { type: { in: ['backlog', 'unstarted', 'started'] } },
+    state: { type: { in: includeStarted ? ['backlog', 'unstarted', 'started'] : ['backlog', 'unstarted'] } },
   };
-  if (teamKey) filter.team = { key: { eq: teamKey } };
+  const resolvedTeamKey = teamKey?.trim() || env('LINEAR_TEAM_KEY').trim();
+  if (resolvedTeamKey) filter.team = { key: { eq: resolvedTeamKey } };
 
   const data = await query<{ issues: { nodes: RawIssue[] } }>(
     `query Issues($filter: IssueFilter, $first: Int!) {
@@ -97,6 +141,55 @@ export async function fetchOpenIssues(teamKey?: string, limit = 25): Promise<Lin
   );
 
   return data.issues.nodes.map(normalize);
+}
+
+/** Creates a real Linear issue, reusing an open exact-title match to avoid duplicates. */
+export async function createLinearIssue(input: {
+  title: string;
+  description: string;
+  kind: LinearIssueKind;
+  teamKey?: string;
+  priority?: number;
+  createdByAgent: 'PRIYA' | 'TESS';
+}): Promise<LinearIssueCreateResult> {
+  const title = input.title.trim();
+  const description = input.description.trim();
+  if (!title) throw new Error('A Linear issue needs a title');
+  if (!description) throw new Error('A Linear issue needs a description');
+
+  const team = await teamContext(input.teamKey);
+  const existing = (await fetchOpenIssues(team.key, 50)).find(
+    (issue) => issue.title.trim().toLowerCase() === title.toLowerCase(),
+  );
+  if (existing) return { issue: existing, created: false };
+
+  const desiredLabel = input.kind === 'bug' ? 'Bug' : input.kind === 'feature' ? 'Feature' : 'Improvement';
+  const label = team.labels.find((entry) => entry.name.toLowerCase() === desiredLabel.toLowerCase());
+  const agentRole = input.createdByAgent === 'TESS' ? 'QA Engineer' : 'Product Owner';
+  const body = [
+    description,
+    '',
+    '---',
+    `Created by **${input.createdByAgent} · ${agentRole}** via My Little Office.`,
+  ].join('\n');
+  const mutationInput: Record<string, unknown> = {
+    title,
+    description: body,
+    teamId: team.id,
+    priority: input.priority ?? (input.kind === 'bug' ? 2 : 3),
+  };
+  if (label) mutationInput.labelIds = [label.id];
+
+  const data = await query<{ issueCreate: { success: boolean; issue: RawIssue | null } }>(
+    `mutation CreateIssue($input: IssueCreateInput!) {
+      issueCreate(input: $input) { success issue { ${ISSUE_FIELDS} } }
+    }`,
+    { input: mutationInput },
+  );
+  if (!data.issueCreate.success || !data.issueCreate.issue) {
+    throw new Error('Linear did not create the issue');
+  }
+  return { issue: normalize(data.issueCreate.issue), created: true };
 }
 
 export async function fetchIssueByIdentifier(identifier: string): Promise<LinearIssue | null> {

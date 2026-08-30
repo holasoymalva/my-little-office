@@ -2,6 +2,8 @@ import { exec } from 'node:child_process';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import type { ToolSchema } from '../providers/types.ts';
+import { createLinearIssue } from '../integrations/linear.ts';
+import type { LinearIssueKind } from '../integrations/linear.ts';
 
 const MAX_OUTPUT = 20_000;
 
@@ -10,6 +12,9 @@ export type ToolContext = {
   allowedCommands: string[];
   deniedPatterns: string[];
   timeoutMs: number;
+  agentId?: string;
+  linearTeamKey?: string;
+  createdLinearIssues?: { id: string; identifier: string; title: string; url: string }[];
 };
 
 export type ToolRun = {
@@ -160,6 +165,21 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     parameters: { type: 'object', properties: {}, required: [] },
   },
   {
+    name: 'create_linear_issue',
+    description:
+      'Create a real Linear issue for a finding from this project. Available only to PRIYA (feature/improvement) and TESS (bug). Avoid duplicates and include concrete evidence plus acceptance criteria or reproduction steps.',
+    parameters: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', description: 'feature, improvement, or bug.' },
+        title: { type: 'string', description: 'Specific issue title.' },
+        description: { type: 'string', description: 'Complete Markdown issue body grounded in the repository inspection.' },
+        priority: { type: 'number', description: 'Linear priority: 1 urgent, 2 high, 3 normal, 4 low.' },
+      },
+      required: ['kind', 'title', 'description'],
+    },
+  },
+  {
     name: 'finish',
     description:
       'Call when the task is fully implemented. Provide a summary of what changed and how it was verified.',
@@ -269,6 +289,42 @@ export async function runTool(
           timeoutMs: 60_000,
         });
         return { output: clip(result.stdout.trim() || '(no changes yet)') };
+      }
+
+      case 'create_linear_issue': {
+        if (context.agentId !== 'PRIYA' && context.agentId !== 'TESS') {
+          return { isError: true, output: 'Only PRIYA and TESS may create Linear issues.' };
+        }
+        const kind = String(args.kind ?? '').toLowerCase() as LinearIssueKind;
+        if (!['feature', 'improvement', 'bug'].includes(kind)) {
+          return { isError: true, output: 'kind must be feature, improvement, or bug.' };
+        }
+        if (context.agentId === 'TESS' && kind !== 'bug') {
+          return { isError: true, output: 'TESS may only file bug issues.' };
+        }
+        if (context.agentId === 'PRIYA' && kind === 'bug') {
+          return { isError: true, output: 'PRIYA files product features and improvements; use TESS for bugs.' };
+        }
+        const result = await createLinearIssue({
+          createdByAgent: context.agentId,
+          kind,
+          title: String(args.title ?? ''),
+          description: String(args.description ?? ''),
+          priority: args.priority === undefined ? undefined : Number(args.priority),
+          teamKey: context.linearTeamKey,
+        });
+        if (!context.createdLinearIssues) context.createdLinearIssues = [];
+        if (!context.createdLinearIssues.some((issue) => issue.id === result.issue.id)) {
+          context.createdLinearIssues.push({
+            id: result.issue.id,
+            identifier: result.issue.identifier,
+            title: result.issue.title,
+            url: result.issue.url,
+          });
+        }
+        return {
+          output: `${result.created ? 'Created' : 'Already exists'}: ${result.issue.identifier} · ${result.issue.title} · ${result.issue.url}`,
+        };
       }
 
       case 'finish': {

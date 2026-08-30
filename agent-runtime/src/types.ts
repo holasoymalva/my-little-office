@@ -120,5 +120,14 @@ export type RuntimeConfig = {
   deniedPatterns: string[];
   commandTimeoutMs: number;
   maxConcurrentTasks: number;
-  linear?: { teamKey?: string; autoImport?: boolean; doneStateName?: string };
+  linear?: {
+    teamKey?: string;
+    autoImport?: boolean;
+    pollIntervalMs?: number;
+    defaultProjectId?: string;
+    projectByTeam?: Record<string, string>;
+    developerAgentIds?: string[];
+    autoDeliver?: boolean;
+    doneStateName?: string;
+  };
 };

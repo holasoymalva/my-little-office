@@ -19,9 +19,15 @@ export function systemPrompt(options: {
     '3. Make the smallest change that fully solves the task. Do not refactor unrelated code, add READMEs, or reformat files you did not need to touch.',
     '4. Verify your work by running the project\'s build or tests with run_command before finishing.',
     '5. When the task is genuinely complete and verified, call the `finish` tool with a summary of every file you changed and why.',
+    agent.id === 'PRIYA'
+      ? '6. For product discovery or backlog-generation tasks, inspect the product first, then use create_linear_issue for focused features or improvements with evidence and acceptance criteria. Do not edit code unless the brief asks you to implement.'
+      : '',
+    agent.id === 'TESS'
+      ? '6. For QA audit tasks, reproduce or substantiate each defect, then use create_linear_issue with kind bug, reproduction steps, expected behavior, actual behavior, and impact. Do not file speculative bugs.'
+      : '',
     '',
     `Commands you may run: ${allowedCommands.join(', ')}.`,
-    'You cannot push, publish, or reach the network. Committing and opening the pull request is handled for you after you finish.',
+    'You cannot push, publish, or make arbitrary network requests. Linear issue creation is available only through the dedicated tool. Committing and opening the pull request is handled for you after you finish.',
     '',
     'If the task is impossible or the request is ambiguous in a way that changes the implementation, call `finish` and explain what is blocking you instead of guessing.',
   ].filter(Boolean).join('\n');

@@ -141,6 +141,9 @@ async function runPipeline(taskId: string, signal: AbortSignal): Promise<void> {
     allowedCommands: config.allowedCommands,
     deniedPatterns: config.deniedPatterns,
     timeoutMs: config.commandTimeoutMs,
+    agentId: agent.id,
+    linearTeamKey: config.linear?.teamKey,
+    createdLinearIssues: [],
   };
 
   const system = systemPrompt({ agent, project, allowedCommands: config.allowedCommands });
@@ -191,6 +194,23 @@ async function runPipeline(taskId: string, signal: AbortSignal): Promise<void> {
   updateTask(taskId, { diffStat: changes.diffStat, filesChanged: changes.files });
 
   if (!changes.files.length) {
+    const createdIssues = toolContext.createdLinearIssues ?? [];
+    if (createdIssues.length) {
+      const issueSummary = createdIssues
+        .map((issue) => `${issue.identifier} · ${issue.title} · ${issue.url}`)
+        .join('\n');
+      updateTask(taskId, {
+        stage: 'done',
+        summary: [loop.summary, '', 'Linear issues:', issueSummary].filter(Boolean).join('\n'),
+      });
+      appendStep(taskId, {
+        stage: 'done',
+        kind: 'stage',
+        title: `${createdIssues.length} Linear issue(s) created`,
+        detail: issueSummary,
+      });
+      return;
+    }
     updateTask(taskId, {
       stage: 'failed',
       error: loop.summary || 'The agent finished without changing any files.',

@@ -44,9 +44,10 @@ Fill in `.env` with at least one provider key:
 | Gemini | `GEMINI_API_KEY` | aistudio.google.com |
 | Grok | `XAI_API_KEY` | console.x.ai |
 
-Optionally `LINEAR_API_KEY` (Linear → Settings → Security & access → API keys)
-to pull issues straight into the office, and `CHAT_PROVIDER` / `CHAT_MODEL` to
-choose which model answers in the office chat.
+Set `LINEAR_API_KEY` (Linear → Settings → Security & access → API keys) and
+`LINEAR_TEAM_KEY` to let the office create, read, comment on, and process Linear
+issues. The key needs read, write, create-issues, and create-comments access.
+Use `CHAT_PROVIDER` / `CHAT_MODEL` to choose which model answers in office chat.
 
 Then check the wiring before spending any tokens:
 
@@ -166,6 +167,20 @@ It can also register a project for you — from a path (*"add the project at
 tell you what the board is doing, and cancel a task. When a request is too vague
 to implement it asks one question instead of guessing.
 
+The same chat is the role-aware Linear interface:
+
+- Ask **PRIYA / Product Owner** to create a feature or improvement. It creates a
+  real Linear issue with acceptance criteria and the matching team label.
+- Ask **TESS / QA Engineer** to report a bug. It creates a real Linear issue with
+  reproduction steps, expected behavior, actual behavior, impact, and the Bug label.
+- Ask **MGR / Tech Manager** to sync Linear. It selects unassigned backlog work,
+  maps the Linear team to the registered project, and routes each issue to an idle
+  Software Engineer or Tech Lead. Duplicate tasks are ignored.
+
+With `linear.autoImport` enabled, MGR performs that sync on the configured interval
+without being asked. Only unassigned issues in Backlog or an unstarted state are
+eligible; human-owned and already-imported issues are left alone.
+
 The chat runs on the first provider with a key, in the order ChatGPT → Grok →
 Gemini. Pin it with `CHAT_PROVIDER=gemini` and `CHAT_MODEL=...` in `.env`.
 
@@ -197,6 +212,21 @@ output in the console, then hit *Approve & open PR*.
 For Linear-sourced tasks the runtime also comments on the issue when work
 starts and when it lands, and moves the issue to *In Progress* and then to the
 state named in `linear.doneStateName`.
+
+```jsonc
+"linear": {
+  "teamKey": "",                    // empty = LINEAR_TEAM_KEY from .env
+  "autoImport": true,
+  "pollIntervalMs": 60000,
+  "developerAgentIds": ["DEV", "LEAD"],
+  "autoDeliver": true,
+  "doneStateName": "In Review"
+}
+```
+
+`autoDeliver: true` makes Linear work continue through commit, branch push, and
+pull request after checks pass. Set it to `false` if every imported issue should
+wait for approval in the office first.
 
 ## Deploying the dashboard
 

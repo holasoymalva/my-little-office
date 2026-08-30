@@ -9,9 +9,26 @@
       "name": "My Little Office",
       "path": ".",
       "baseBranch": "main",
-      "setup": ["npm install --no-audit --no-fund"],
-      "verify": ["npm run lint", "npm run build"],
+      "setup": [
+        "npm install --no-audit --no-fund"
+      ],
+      "verify": [
+        "npm run lint",
+        "npm run build"
+      ],
       "conventions": "Next.js 16 App Router on Cloudflare Workers via vinext. Dashboard content is data-driven from app/office.config.ts. Prefer editing configuration over adding components. TypeScript strict mode; no new dependencies without a strong reason."
+    },
+    {
+      "id": "many-llms",
+      "name": "ManyLLM (iOS)",
+      "path": "/Users/malva/Documents/projects/mobile/many-llms",
+      "baseBranch": "main",
+      "source": "local",
+      "setup": [],
+      "verify": [
+        "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project many-llms.xcodeproj -scheme \"many-llms\" -destination 'generic/platform=iOS Simulator' -configuration Debug CODE_SIGNING_ALLOWED=NO build"
+      ],
+      "conventions": "SwiftUI app for iPhone and iPad, iOS 16+, no third-party dependencies. UI strings live in many-llms/Services/LocalizationManager.swift with a Spanish and an English dictionary — add every new string to both. Views are in many-llms/Views and many-llms/Components, state in many-llms/Stores, networking in many-llms/Services. Match the surrounding SwiftUI style; do not add packages."
     }
   ],
 
@@ -60,6 +77,10 @@
 
   "linear": {
     "teamKey": "",
+    "autoImport": true,
+    "pollIntervalMs": 60000,
+    "developerAgentIds": ["DEV", "LEAD"],
+    "autoDeliver": true,
     "doneStateName": "In Review"
   },
 

@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { PROVIDER_KEYS, PROVIDER_LABELS, loadConfig, providerConfigured } from './config.ts';
 import { getProvider } from './providers/index.ts';
 import { fetchIssueByIdentifier, fetchOpenIssues, linearConfigured } from './integrations/linear.ts';
+import { initLinearAutomation, linearAutomationStatus, syncLinearIssues } from './linear-automation.ts';
 import {
   agentWorkload,
   cancel,
@@ -23,6 +24,7 @@ initTasks(config);
 initChat(config);
 loadTasks();
 loadChat();
+initLinearAutomation(config);
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
@@ -63,7 +65,10 @@ function runtimeStatus() {
   return {
     ok: true,
     providers,
-    integrations: { linear: linearConfigured() },
+    integrations: {
+      linear: linearConfigured(),
+      linearAutomation: linearAutomationStatus(),
+    },
     chat: chatStatus(),
     agents: config.agents.map((agent) => ({
       ...agent,
@@ -229,6 +234,15 @@ const server = createServer((request, response) => {
           url.searchParams.get('team') ?? config.linear?.teamKey,
         );
         json(response, 200, { issues });
+        return;
+      }
+
+      if (path === '/api/linear/sync' && request.method === 'POST') {
+        if (!linearConfigured()) {
+          json(response, 400, { error: 'LINEAR_API_KEY is not set' });
+          return;
+        }
+        json(response, 200, { automation: await syncLinearIssues() });
         return;
       }
 

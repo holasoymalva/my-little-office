@@ -108,7 +108,18 @@ export type ChatTurn = {
 export type RuntimeStatus = {
   ok: true;
   providers: { id: ProviderId; label: string; configured: boolean; envVar: string; defaultModel?: string }[];
-  integrations: { linear: boolean };
+  integrations: {
+    linear: boolean;
+    linearAutomation: {
+      enabled: boolean;
+      running: boolean;
+      pollIntervalMs: number;
+      lastSyncAt?: string;
+      lastError?: string;
+      assignedTotal: number;
+      lastAssigned: string[];
+    };
+  };
   chat: { ready: boolean; provider?: ProviderId; model?: string; hint?: string };
   agents: { id: string; role: string; provider: ProviderId; model?: string; skills: string[]; ready: boolean }[];
   projects: ProjectSummary[];
@@ -179,6 +190,7 @@ export const runtimeApi = {
     call<{ reply: ChatTurn }>('/api/chat', { method: 'POST', body: JSON.stringify({ message }) }),
   resetChat: () => call<{ cleared: boolean }>('/api/chat/reset', { method: 'POST' }),
   linearIssues: () => call<{ issues: LinearIssue[] }>('/api/linear/issues'),
+  syncLinear: () => call<{ automation: RuntimeStatus['integrations']['linearAutomation'] }>('/api/linear/sync', { method: 'POST' }),
   assignLinear: (input: {
     identifier: string;
     agentId: string;

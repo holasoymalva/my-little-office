@@ -8,6 +8,8 @@ import { appendChat, listChat, listTasks } from './store.ts';
 import { createAndStartTask } from './tasks.ts';
 import type { ChatTurn, ProviderId, RuntimeConfig, Task } from './types.ts';
 import { ACTIVE_STAGES } from './types.ts';
+import { createLinearIssue, fetchOpenIssues, linearConfigured } from './integrations/linear.ts';
+import { syncLinearIssues } from './linear-automation.ts';
 
 const MAX_TOOL_ROUNDS = 8;
 const HISTORY_TURNS = 16;
@@ -66,6 +68,32 @@ const TOOLS: ToolSchema[] = [
   {
     name: 'list_tasks',
     description: 'List the tasks the office is currently working on and the ones it recently finished.',
+    parameters: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'create_linear_issue',
+    description:
+      'Create a real issue in Linear. Use PRIYA for product value, features and improvements; use TESS for bugs found by QA. The description must include acceptance criteria for product work or reproduction steps and expected behavior for bugs.',
+    parameters: {
+      type: 'object',
+      properties: {
+        createdByAgent: { type: 'string', description: 'PRIYA for Product Owner work or TESS for QA bug reports.' },
+        kind: { type: 'string', description: 'feature, improvement, or bug.' },
+        title: { type: 'string', description: 'Specific issue title.' },
+        description: { type: 'string', description: 'Complete Markdown issue body with context and acceptance criteria or reproduction steps.' },
+        priority: { type: 'number', description: 'Linear priority: 1 urgent, 2 high, 3 normal, 4 low.' },
+      },
+      required: ['createdByAgent', 'kind', 'title', 'description'],
+    },
+  },
+  {
+    name: 'list_linear_issues',
+    description: 'List open Linear issues visible to the configured team.',
+    parameters: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'sync_linear',
+    description: 'Ask MGR, the Tech Manager, to sync Linear now and automatically assign eligible issues to idle developer agents.',
     parameters: { type: 'object', properties: {}, required: [] },
   },
   {
@@ -153,7 +181,17 @@ function systemPrompt(): string {
     '  when the user mentioned them, and say what "done" looks like.',
     '- Only one project is registered? Use it without asking. Several? Use the one the user names, or ask.',
     '- Answer questions about the board with list_tasks rather than from memory.',
+    '- When the user gives a concrete product idea and asks the Product Owner to record it, call create_linear_issue',
+    '  with createdByAgent PRIYA and kind feature or improvement.',
+    '- When the user asks PRIYA to inspect a project and discover opportunities, create a task for PRIYA instead;',
+    '  her project agent can inspect the repository and create grounded Linear issues with its dedicated tool.',
+    '- When the user gives a concrete defect and asks QA to report it, call create_linear_issue with createdByAgent',
+    '  TESS and kind bug. When asked to audit a project for unknown bugs, create a task for TESS so she can inspect',
+    '  and reproduce issues before filing them.',
+    '- When the user asks the Tech Manager to process or distribute Linear work, call sync_linear. MGR owns routing;',
+    '  do not manually create duplicate office tasks for those Linear issues.',
     '- Never claim you created a task unless the tool call succeeded.',
+    '- Never claim you created a Linear issue unless create_linear_issue returned created or already existed.',
   ].join('\n');
 }
 
@@ -190,6 +228,43 @@ async function runChatTool(
         'Recent:',
         ...tasks.filter((task) => !active.includes(task)).slice(0, 10).map((task) => `  ${describeTask(task)}`),
       ].join('\n');
+    }
+
+    case 'create_linear_issue': {
+      if (!linearConfigured()) return 'Failed: LINEAR_API_KEY is not set.';
+      const createdByAgent = String(args.createdByAgent ?? '').toUpperCase();
+      if (createdByAgent !== 'PRIYA' && createdByAgent !== 'TESS') {
+        return 'Failed: createdByAgent must be PRIYA or TESS.';
+      }
+      const kind = String(args.kind ?? '').toLowerCase();
+      if (kind !== 'feature' && kind !== 'improvement' && kind !== 'bug') {
+        return 'Failed: kind must be feature, improvement, or bug.';
+      }
+      const result = await createLinearIssue({
+        createdByAgent,
+        kind,
+        title: String(args.title ?? ''),
+        description: String(args.description ?? ''),
+        priority: args.priority === undefined ? undefined : Number(args.priority),
+        teamKey: config.linear?.teamKey,
+      });
+      return `${result.created ? 'Created' : 'Already exists'}: ${result.issue.identifier} · ${result.issue.title} · ${result.issue.url}`;
+    }
+
+    case 'list_linear_issues': {
+      if (!linearConfigured()) return 'Linear is not configured.';
+      const issues = await fetchOpenIssues(config.linear?.teamKey, 20);
+      return issues.length
+        ? issues.map((issue) => `${issue.identifier} · ${issue.title} · ${issue.stateName}${issue.assigneeName ? ` · ${issue.assigneeName}` : ''}`).join('\n')
+        : 'No open Linear issues.';
+    }
+
+    case 'sync_linear': {
+      const result = await syncLinearIssues();
+      if (result.lastError) return `Linear sync failed: ${result.lastError}`;
+      return result.lastAssigned.length
+        ? `MGR assigned ${result.lastAssigned.join(', ')} to available developer agents.`
+        : 'Linear is synced. No eligible unassigned issue had an idle developer available.';
     }
 
     case 'cancel_task':
