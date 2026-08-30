@@ -71,6 +71,12 @@ export type ProjectConfig = {
   path?: string;
   /** Clone URL used when `path` is absent. */
   repo?: string;
+  /**
+   * Where the throwaway checkout comes from. `remote` clones the project's
+   * origin; `local` clones the checkout at `path`, so commits you have not
+   * pushed yet are part of what the agent iterates on.
+   */
+  source?: 'remote' | 'local';
   baseBranch: string;
   /** Commands run to prove the change works before delivery. */
   verify: string[];
@@ -89,6 +95,19 @@ export type AgentProfile = {
   /** Agents may only take tasks whose labels intersect this list (empty = any). */
   skills: string[];
   maxIterations: number;
+};
+
+export type ChatRole = 'user' | 'assistant';
+
+/** One turn of the office chat, where you brief agents in plain language. */
+export type ChatTurn = {
+  id: string;
+  at: string;
+  role: ChatRole;
+  content: string;
+  /** Tasks the assistant created while answering this turn. */
+  taskIds?: string[];
+  error?: boolean;
 };
 
 export type RuntimeConfig = {

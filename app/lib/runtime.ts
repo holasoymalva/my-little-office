@@ -68,12 +68,50 @@ export type Task = {
   usage: { calls: number; inputTokens: number; outputTokens: number };
 };
 
+export type ProjectSummary = {
+  id: string;
+  name: string;
+  path?: string;
+  repo?: string;
+  source: 'remote' | 'local';
+  baseBranch: string;
+  setup: string[];
+  verify: string[];
+  conventions?: string;
+};
+
+export type ProjectInspection = {
+  path: string;
+  exists: boolean;
+  isGitRepo: boolean;
+  remoteUrl?: string;
+  baseBranch?: string;
+  currentBranch?: string;
+  dirty?: boolean;
+  stack?: string;
+  suggestedId: string;
+  suggestedName: string;
+  suggestedSetup: string[];
+  suggestedVerify: string[];
+  problem?: string;
+};
+
+export type ChatTurn = {
+  id: string;
+  at: string;
+  role: 'user' | 'assistant';
+  content: string;
+  taskIds?: string[];
+  error?: boolean;
+};
+
 export type RuntimeStatus = {
   ok: true;
   providers: { id: ProviderId; label: string; configured: boolean; envVar: string; defaultModel?: string }[];
   integrations: { linear: boolean };
+  chat: { ready: boolean; provider?: ProviderId; model?: string; hint?: string };
   agents: { id: string; role: string; provider: ProviderId; model?: string; skills: string[]; ready: boolean }[];
-  projects: { id: string; name: string; baseBranch: string; verify: string[] }[];
+  projects: ProjectSummary[];
   workload: Record<string, { stage: TaskStage; taskId: string; title: string } | null>;
 };
 
@@ -113,6 +151,33 @@ export const runtimeApi = {
   cancel: (id: string) => call<{ cancelled: boolean }>(`/api/tasks/${id}/cancel`, { method: 'POST' }),
   approve: (id: string) => call<{ task: Task }>(`/api/tasks/${id}/approve`, { method: 'POST' }),
   retry: (id: string) => call<{ task: Task }>(`/api/tasks/${id}/retry`, { method: 'POST' }),
+  projects: () => call<{ projects: ProjectSummary[] }>('/api/projects'),
+  inspectPath: (path: string) =>
+    call<{ inspection: ProjectInspection }>('/api/projects/inspect', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    }),
+  inspectRepo: (repo: string) =>
+    call<{ inspection: ProjectInspection }>('/api/projects/inspect', {
+      method: 'POST',
+      body: JSON.stringify({ repo }),
+    }),
+  saveProject: (input: {
+    id?: string;
+    name?: string;
+    path?: string;
+    repo?: string;
+    baseBranch?: string;
+    source?: 'remote' | 'local';
+    setup?: string[];
+    verify?: string[];
+    conventions?: string;
+  }) => call<{ project: ProjectSummary }>('/api/projects', { method: 'POST', body: JSON.stringify(input) }),
+  removeProject: (id: string) =>
+    call<{ removed: string }>(`/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  chat: (message: string) =>
+    call<{ reply: ChatTurn }>('/api/chat', { method: 'POST', body: JSON.stringify({ message }) }),
+  resetChat: () => call<{ cleared: boolean }>('/api/chat/reset', { method: 'POST' }),
   linearIssues: () => call<{ issues: LinearIssue[] }>('/api/linear/issues'),
   assignLinear: (input: {
     identifier: string;
@@ -124,7 +189,9 @@ export const runtimeApi = {
 };
 
 type RuntimeEvent =
-  | { type: 'hello'; tasks: Task[] }
+  | { type: 'hello'; tasks: Task[]; chat: ChatTurn[] }
+  | { type: 'chat.message'; message: ChatTurn }
+  | { type: 'chat.cleared' }
   | { type: 'task.created'; task: Task }
   | { type: 'task.updated'; task: Task }
   | { type: 'task.step'; taskId: string; step: TaskStep };
@@ -133,6 +200,7 @@ export type RuntimeState = {
   connected: boolean;
   status: RuntimeStatus | null;
   tasks: Task[];
+  chat: ChatTurn[];
   error: string | null;
   refresh: () => void;
 };
@@ -141,6 +209,7 @@ export function useRuntime(): RuntimeState {
   const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState<RuntimeStatus | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [chat, setChat] = useState<ChatTurn[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
   const statusTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
@@ -188,6 +257,17 @@ export function useRuntime(): RuntimeState {
 
       if (event.type === 'hello') {
         setTasks(event.tasks);
+        setChat(event.chat ?? []);
+        return;
+      }
+      if (event.type === 'chat.message') {
+        setChat((current) =>
+          current.some((turn) => turn.id === event.message.id) ? current : [...current, event.message],
+        );
+        return;
+      }
+      if (event.type === 'chat.cleared') {
+        setChat([]);
         return;
       }
       if (event.type === 'task.created') {
@@ -218,8 +298,8 @@ export function useRuntime(): RuntimeState {
   }, [nonce]);
 
   return useMemo(
-    () => ({ connected, status, tasks, error, refresh }),
-    [connected, status, tasks, error, refresh],
+    () => ({ connected, status, tasks, chat, error, refresh }),
+    [connected, status, tasks, chat, error, refresh],
   );
 }
 

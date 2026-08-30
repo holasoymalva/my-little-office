@@ -3,11 +3,12 @@ import { isAbsolute, resolve } from 'node:path';
 import { env, REPO_ROOT } from './env.ts';
 import type { AgentProfile, ProjectConfig, ProviderId, RuntimeConfig } from './types.ts';
 
-const CONFIG_PATH = resolve(REPO_ROOT, 'super-agent.config.json');
+export const CONFIG_PATH = resolve(REPO_ROOT, 'super-agent.config.json');
 
 const DEFAULT_ALLOWED_COMMANDS = [
   'npm', 'npx', 'pnpm', 'yarn', 'node', 'tsc', 'eslint', 'vitest', 'jest',
   'python', 'python3', 'pytest', 'pip', 'go', 'cargo', 'make',
+  'swift', 'xcodebuild', 'xcrun',
   'git status', 'git diff', 'git log', 'git add', 'git show', 'git rev-parse',
   'ls', 'cat', 'head', 'tail', 'grep', 'rg', 'find', 'wc', 'sed', 'awk', 'echo', 'pwd',
 ];

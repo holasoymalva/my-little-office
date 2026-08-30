@@ -2,20 +2,25 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { REPO_ROOT } from './env.ts';
-import type { Task, TaskStep } from './types.ts';
+import type { ChatTurn, Task, TaskStep } from './types.ts';
 
 const DATA_FILE = resolve(REPO_ROOT, 'agent-runtime/.data/tasks.json');
+const CHAT_FILE = resolve(REPO_ROOT, 'agent-runtime/.data/chat.json');
 const MAX_STEPS_PER_TASK = 400;
+const MAX_CHAT_TURNS = 200;
 
 export type RuntimeEvent =
   | { type: 'task.created'; task: Task }
   | { type: 'task.updated'; task: Task }
   | { type: 'task.step'; taskId: string; step: TaskStep }
-  | { type: 'hello'; tasks: Task[] };
+  | { type: 'chat.message'; message: ChatTurn }
+  | { type: 'chat.cleared' }
+  | { type: 'hello'; tasks: Task[]; chat: ChatTurn[] };
 
 type Listener = (event: RuntimeEvent) => void;
 
 const tasks = new Map<string, Task>();
+const chat: ChatTurn[] = [];
 const listeners = new Set<Listener>();
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -46,6 +51,43 @@ export function loadTasks(): void {
   } catch (error) {
     console.error('[store] could not read saved tasks:', (error as Error).message);
   }
+}
+
+function persistChat(): void {
+  try {
+    mkdirSync(dirname(CHAT_FILE), { recursive: true });
+    writeFileSync(CHAT_FILE, JSON.stringify(chat, null, 2), 'utf8');
+  } catch (error) {
+    console.error('[store] failed to persist chat:', (error as Error).message);
+  }
+}
+
+export function loadChat(): void {
+  if (!existsSync(CHAT_FILE)) return;
+  try {
+    chat.push(...(JSON.parse(readFileSync(CHAT_FILE, 'utf8')) as ChatTurn[]));
+  } catch (error) {
+    console.error('[store] could not read saved chat:', (error as Error).message);
+  }
+}
+
+export function listChat(): ChatTurn[] {
+  return chat;
+}
+
+export function appendChat(input: Omit<ChatTurn, 'id' | 'at'>): ChatTurn {
+  const message: ChatTurn = { ...input, id: randomUUID(), at: new Date().toISOString() };
+  chat.push(message);
+  if (chat.length > MAX_CHAT_TURNS) chat.splice(0, chat.length - MAX_CHAT_TURNS);
+  persistChat();
+  emit({ type: 'chat.message', message });
+  return message;
+}
+
+export function clearChat(): void {
+  chat.length = 0;
+  persistChat();
+  emit({ type: 'chat.cleared' });
 }
 
 export function subscribe(listener: Listener): () => void {

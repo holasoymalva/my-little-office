@@ -40,7 +40,8 @@ for (const id of Object.keys(PROVIDER_KEYS) as ProviderId[]) {
   try {
     const result = await provider.chat(
       [{ role: 'user', content: 'Reply with the single word: ready' }],
-      { model: provider.defaultModel, maxTokens: 16 },
+      // Reasoning models spend part of this budget thinking before they answer.
+      { model: provider.defaultModel, maxTokens: 512 },
     );
     pass(`${PROVIDER_LABELS[id]} · ${provider.defaultModel} · replied "${result.text.trim().slice(0, 20)}"`);
   } catch (error) {

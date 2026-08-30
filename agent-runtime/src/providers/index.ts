@@ -29,7 +29,7 @@ export function getProvider(id: ProviderId): Provider {
   if (id === 'gemini') {
     return createGeminiProvider({
       apiKey: env('GEMINI_API_KEY'),
-      defaultModel: env('GEMINI_MODEL', 'gemini-2.5-pro'),
+      defaultModel: env('GEMINI_MODEL', 'gemini-3.1-pro-preview'),
     });
   }
 

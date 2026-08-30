@@ -36,15 +36,19 @@ async function cloneSource(project: ProjectConfig): Promise<{ source: string; re
   if (!local || !existsSync(local)) {
     throw new Error(
       `Project "${project.id}" has neither a reachable path nor a repo URL. ` +
-      'Fix it in super-agent.config.json.',
+      'Point it at a directory from the dashboard, or fix it in super-agent.config.json.',
     );
   }
 
   const origin = await runShell('git remote get-url origin', { cwd: local, timeoutMs: 15_000 });
   const remoteUrl = origin.code === 0 ? origin.stdout.trim() : undefined;
-  // Cloning the remote keeps the user's working tree untouched while still
-  // producing a branch that can be pushed and turned into a pull request.
-  return remoteUrl ? { source: remoteUrl, remoteUrl } : { source: local };
+
+  // Cloning your checkout picks up commits you have not pushed yet, which is
+  // what you want while iterating locally; cloning the remote is the safer
+  // default for a project several agents share. Either way the working tree
+  // is never touched, and the pull request still targets the real remote.
+  if (project.source === 'local' || !remoteUrl) return { source: local, remoteUrl };
+  return { source: remoteUrl, remoteUrl };
 }
 
 export async function prepareWorkspace(options: {
@@ -63,6 +67,13 @@ export async function prepareWorkspace(options: {
   const { source, remoteUrl } = await cloneSource(project);
   onLog(`Cloning ${source}`);
   await git(config.workspaceRoot, `clone --no-single-branch ${JSON.stringify(source)} ${JSON.stringify(dir)}`);
+
+  // A clone of a local checkout inherits that directory as its origin; point it
+  // back at the real remote so the delivery step can push and open a PR.
+  if (remoteUrl && source !== remoteUrl) {
+    await git(dir, `remote set-url origin ${JSON.stringify(remoteUrl)}`);
+    await runShell('git fetch origin --quiet', { cwd: dir, timeoutMs: 300_000 });
+  }
 
   await git(dir, `checkout ${JSON.stringify(project.baseBranch)}`);
   await git(dir, `checkout -b ${JSON.stringify(branch)}`);
