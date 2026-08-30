@@ -134,11 +134,16 @@ export function createGeminiProvider(options: {
         }
 
         const payload = JSON.parse(text) as {
-          candidates?: { content?: { parts?: Part[] } }[];
-          usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+          candidates?: { content?: { parts?: Part[] }; finishReason?: string }[];
+          usageMetadata?: {
+            promptTokenCount?: number;
+            candidatesTokenCount?: number;
+            thoughtsTokenCount?: number;
+          };
         };
 
-        const parts = payload.candidates?.[0]?.content?.parts ?? [];
+        const candidate = payload.candidates?.[0];
+        const parts = candidate?.content?.parts ?? [];
         const textChunks: string[] = [];
         const toolCalls: ToolCall[] = [];
 
@@ -154,12 +159,24 @@ export function createGeminiProvider(options: {
           }
         }
 
+        // Reasoning models spend output budget on thoughts before they answer, so
+        // a truncated turn comes back with no parts at all. Saying so beats
+        // handing the agent loop an empty message it cannot act on.
+        if (!textChunks.length && !toolCalls.length && candidate?.finishReason === 'MAX_TOKENS') {
+          throw new ProviderError(
+            'gemini',
+            502,
+            `${model} ran out of output tokens while thinking. Raise maxTokens, or use a model with a smaller thinking budget.`,
+          );
+        }
+
+        const thoughts = payload.usageMetadata?.thoughtsTokenCount ?? 0;
         return {
           text: textChunks.join('\n'),
           toolCalls,
           usage: {
             inputTokens: payload.usageMetadata?.promptTokenCount ?? 0,
-            outputTokens: payload.usageMetadata?.candidatesTokenCount ?? 0,
+            outputTokens: (payload.usageMetadata?.candidatesTokenCount ?? 0) + thoughts,
           },
         };
       });

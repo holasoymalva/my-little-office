@@ -48,12 +48,15 @@ export function assertCommandAllowed(context: ToolContext, command: string): voi
   // Every chained segment must independently start with an allowed binary.
   const segments = normalized.split(/&&|\|\||;|\|/g).map((part) => part.trim()).filter(Boolean);
   for (const segment of segments) {
+    // A leading VAR=value belongs to the command, not to the binary being run:
+    // "DEVELOPER_DIR=/… xcodebuild build" is still xcodebuild.
+    const binary = segment.replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s+)+/, '');
     const allowed = context.allowedCommands.some((prefix) =>
-      segment === prefix || segment.startsWith(`${prefix} `),
+      binary === prefix || binary.startsWith(`${prefix} `),
     );
     if (!allowed) {
       throw new Error(
-        `command "${segment.split(' ')[0]}" is not in allowedCommands. ` +
+        `command "${binary.split(' ')[0]}" is not in allowedCommands. ` +
         'Add it to super-agent.config.json if the task genuinely needs it.',
       );
     }

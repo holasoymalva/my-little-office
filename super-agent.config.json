@@ -1,7 +1,7 @@
 {
   "workspaceRoot": ".workspaces",
   "maxConcurrentTasks": 2,
-  "commandTimeoutMs": 240000,
+  "commandTimeoutMs": 900000,
 
   "projects": [
     {
@@ -66,6 +66,7 @@
   "allowedCommands": [
     "npm", "npx", "pnpm", "yarn", "node", "tsc", "eslint", "vitest", "jest",
     "python", "python3", "pytest", "pip", "go", "cargo", "make",
+    "swift", "xcodebuild", "xcrun",
     "git status", "git diff", "git log", "git add", "git show", "git rev-parse",
     "ls", "cat", "head", "tail", "grep", "rg", "find", "wc", "sed", "awk", "echo", "pwd"
   ],

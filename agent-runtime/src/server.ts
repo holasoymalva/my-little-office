@@ -10,16 +10,23 @@ import {
   enqueue,
   initOrchestrator,
 } from './orchestrator.ts';
-import { createTask, getTask, listTasks, loadTasks, subscribe } from './store.ts';
-import type { ProviderId, Task } from './types.ts';
+import { chatStatus, initChat, sendChatMessage } from './chat.ts';
+import { initProjects, inspectPath, inspectRepo, removeProject, saveProject } from './projects.ts';
+import { clearChat, getTask, listChat, listTasks, loadChat, loadTasks, subscribe } from './store.ts';
+import { createTaskFromRequest, initTasks } from './tasks.ts';
+import type { ProviderId } from './types.ts';
 
 const config = loadConfig();
 initOrchestrator(config);
+initProjects(config);
+initTasks(config);
+initChat(config);
 loadTasks();
+loadChat();
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'GET,POST,OPTIONS',
+  'access-control-allow-methods': 'GET,POST,DELETE,OPTIONS',
   'access-control-allow-headers': 'content-type',
 };
 
@@ -57,6 +64,7 @@ function runtimeStatus() {
     ok: true,
     providers,
     integrations: { linear: linearConfigured() },
+    chat: chatStatus(),
     agents: config.agents.map((agent) => ({
       ...agent,
       ready: providerConfigured(agent.provider),
@@ -64,8 +72,13 @@ function runtimeStatus() {
     projects: config.projects.map((project) => ({
       id: project.id,
       name: project.name,
+      path: project.path,
+      repo: project.repo,
+      source: project.source ?? 'remote',
       baseBranch: project.baseBranch,
+      setup: project.setup ?? [],
       verify: project.verify,
+      conventions: project.conventions,
     })),
     workload: agentWorkload(),
   };
@@ -83,43 +96,13 @@ function handleEvents(response: ServerResponse): void {
     response.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
-  send({ type: 'hello', tasks: listTasks() });
+  send({ type: 'hello', tasks: listTasks(), chat: listChat() });
   const unsubscribe = subscribe(send);
   const heartbeat = setInterval(() => response.write(': ping\n\n'), 25_000);
 
   response.on('close', () => {
     clearInterval(heartbeat);
     unsubscribe();
-  });
-}
-
-async function createTaskFromRequest(body: Record<string, unknown>): Promise<Task> {
-  const agentId = String(body.agentId ?? '');
-  const agent = config.agents.find((entry) => entry.id === agentId);
-  if (!agent) throw new Error(`Unknown agent "${agentId}"`);
-
-  const projectId = String(body.projectId ?? '');
-  const project = config.projects.find((entry) => entry.id === projectId);
-  if (!project) throw new Error(`Unknown project "${projectId}"`);
-
-  const provider = (body.provider as ProviderId | undefined) ?? agent.provider;
-  if (!providerConfigured(provider)) {
-    throw new Error(`${PROVIDER_LABELS[provider]} is not configured. Set ${PROVIDER_KEYS[provider]} in .env`);
-  }
-
-  const brief = String(body.brief ?? '').trim();
-  if (!brief) throw new Error('A task needs a brief describing the work');
-
-  return createTask({
-    title: String(body.title ?? brief.slice(0, 70)),
-    brief,
-    projectId,
-    agentId,
-    provider,
-    model: String(body.model ?? agent.model ?? getProvider(provider).defaultModel),
-    stage: 'queued',
-    source: (body.source as Task['source'] | undefined) ?? { kind: 'manual' },
-    autoDeliver: body.autoDeliver !== false,
   });
 }
 
@@ -151,7 +134,7 @@ const server = createServer((request, response) => {
       }
 
       if (path === '/api/tasks' && request.method === 'POST') {
-        const task = await createTaskFromRequest(await readBody(request));
+        const task = createTaskFromRequest(await readBody(request));
         enqueue(task.id);
         json(response, 201, { task });
         return;
@@ -189,6 +172,54 @@ const server = createServer((request, response) => {
         }
       }
 
+      if (path === '/api/projects' && request.method === 'GET') {
+        json(response, 200, { projects: config.projects });
+        return;
+      }
+
+      if (path === '/api/projects/inspect' && request.method === 'POST') {
+        const body = await readBody(request);
+        const repo = String(body.repo ?? '').trim();
+        json(response, 200, {
+          inspection: repo ? await inspectRepo(repo) : await inspectPath(String(body.path ?? '')),
+        });
+        return;
+      }
+
+      if (path === '/api/projects' && request.method === 'POST') {
+        const project = await saveProject(await readBody(request));
+        json(response, 201, { project });
+        return;
+      }
+
+      const projectMatch = /^\/api\/projects\/([^/]+)$/.exec(path);
+      if (projectMatch && request.method === 'DELETE') {
+        if (!removeProject(projectMatch[1])) {
+          json(response, 404, { error: `No project "${projectMatch[1]}"` });
+          return;
+        }
+        json(response, 200, { removed: projectMatch[1] });
+        return;
+      }
+
+      if (path === '/api/chat' && request.method === 'GET') {
+        json(response, 200, { messages: listChat(), ...chatStatus() });
+        return;
+      }
+
+      if (path === '/api/chat' && request.method === 'POST') {
+        const body = await readBody(request);
+        const reply = await sendChatMessage(String(body.message ?? ''));
+        json(response, 200, { reply });
+        return;
+      }
+
+      if (path === '/api/chat/reset' && request.method === 'POST') {
+        clearChat();
+        json(response, 200, { cleared: true });
+        return;
+      }
+
       if (path === '/api/linear/issues' && request.method === 'GET') {
         if (!linearConfigured()) {
           json(response, 400, { error: 'LINEAR_API_KEY is not set' });
@@ -209,7 +240,7 @@ const server = createServer((request, response) => {
           json(response, 404, { error: `Linear issue ${identifier} not found` });
           return;
         }
-        const task = await createTaskFromRequest({
+        const task = createTaskFromRequest({
           ...body,
           title: `${issue.identifier} ${issue.title}`,
           brief: [issue.title, '', issue.description].join('\n').trim(),

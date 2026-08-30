@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties } from 'react';
 import type { OfficeConfig } from '../office.types';
 import type { Task, TaskStep } from '../lib/runtime';
 import { STAGE_LABELS, isActive, relativeTime, useRuntime } from '../lib/runtime';
+import { ChatDock } from './chat-dock';
+import { ProjectManager } from './project-manager';
 import { SpriteAgent } from './sprite-agent';
 import { TaskComposer } from './task-composer';
 import { TaskConsole } from './task-console';
@@ -12,6 +14,11 @@ import { TaskConsole } from './task-console';
 type ThemeStyle = CSSProperties & Record<`--${string}`, string>;
 
 const DONE_STAGES = new Set(['done']);
+
+/** The formatted date never changes while the dashboard is open, so nothing to subscribe to. */
+function subscribeToNothing(): () => void {
+  return () => {};
+}
 
 function stageTone(stage: Task['stage']): string {
   if (stage === 'done') return 'ok';
@@ -36,12 +43,20 @@ export function OfficeDashboard({ config }: { config: OfficeConfig }) {
   const [composerOpen, setComposerOpen] = useState(false);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const [projectsOpen, setProjectsOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const selected = config.agents.find((agent) => agent.id === selectedId) ?? config.agents[0];
-  const today = useMemo(
-    () => new Intl.DateTimeFormat(config.system.locale, { weekday: 'short', day: '2-digit', month: 'short' }).format(new Date()),
+  // The date is whatever day it is where the reader is sitting, which the server
+  // cannot know: formatting it during SSR puts a UTC date in the HTML, and
+  // hydration then fails against the browser's own timezone. The server snapshot
+  // is empty and the real date arrives on the client, where the answer is right.
+  const readToday = useCallback(
+    () => new Intl.DateTimeFormat(config.system.locale, { weekday: 'short', day: '2-digit', month: 'short' })
+      .format(new Date()),
     [config.system.locale],
   );
+  const today = useSyncExternalStore(subscribeToNothing, readToday, () => '');
 
   const tasks = runtime.tasks;
   const openTask = tasks.find((task) => task.id === openTaskId) ?? null;
@@ -134,7 +149,12 @@ export function OfficeDashboard({ config }: { config: OfficeConfig }) {
 
       <div className="workspace">
         <aside className="left-panel panel">
-          <div className="panel-title"><span>◫</span> PROJECTS</div>
+          <div className="panel-title">
+            <span>◫</span> PROJECTS
+            <button className="panel-action" onClick={() => setProjectsOpen(true)} disabled={!runtime.status}>
+              MANAGE
+            </button>
+          </div>
           {(runtime.status?.projects ?? []).map((project, index) => {
             const count = tasks.filter((task) => task.projectId === project.id && isActive(task)).length;
             return (
@@ -146,14 +166,18 @@ export function OfficeDashboard({ config }: { config: OfficeConfig }) {
                 <span className={`channel-icon c${index % 3}`}>{'</>'}</span>
                 <div>
                   <strong>{project.name}</strong>
-                  <small>{count ? `${count} running` : `base: ${project.baseBranch}`}</small>
+                  <small title={project.path ?? project.repo}>
+                    {count ? `${count} running` : shortPath(project.path) ?? `base: ${project.baseBranch}`}
+                  </small>
                 </div>
                 <i />
               </button>
             );
           })}
           {!runtime.status?.projects.length && (
-            <p className="empty-hint">Define your repositories in <code>super-agent.config.json</code>.</p>
+            <p className="empty-hint">
+              No repository yet. Hit <b>MANAGE</b> and give the office the path of a git checkout.
+            </p>
           )}
 
           <div className="panel-title second"><span>◈</span> DELIVERY</div>
@@ -168,6 +192,9 @@ export function OfficeDashboard({ config }: { config: OfficeConfig }) {
 
           <button className="new-channel primary-cta" onClick={() => setComposerOpen(true)} disabled={!runtime.status}>
             ＋ ASSIGN TASK
+          </button>
+          <button className="new-channel" onClick={() => setChatOpen(true)} disabled={!runtime.status}>
+            ▣ CHAT WITH THE TEAM
           </button>
         </aside>
 
@@ -255,7 +282,10 @@ export function OfficeDashboard({ config }: { config: OfficeConfig }) {
               {projectFilter ? `FILTERED · ${visibleTasks.length} TASKS` : `${tasks.length} TASKS`}
             </small>
           </div>
-          <button onClick={() => setComposerOpen(true)} disabled={!runtime.status}>＋ NEW TASK</button>
+          <div className="queue-actions">
+            <button onClick={() => setChatOpen(true)} disabled={!runtime.status}>▣ CHAT</button>
+            <button onClick={() => setComposerOpen(true)} disabled={!runtime.status}>＋ NEW TASK</button>
+          </div>
         </div>
         <div className="queue-list">
           {visibleTasks.length === 0 && (
@@ -290,9 +320,35 @@ export function OfficeDashboard({ config }: { config: OfficeConfig }) {
         />
       )}
 
+      {projectsOpen && runtime.status && (
+        <ProjectManager
+          status={runtime.status}
+          onClose={() => setProjectsOpen(false)}
+          onChanged={runtime.refresh}
+        />
+      )}
+
+      {chatOpen && runtime.status && (
+        <ChatDock
+          status={runtime.status}
+          chat={runtime.chat}
+          tasks={tasks}
+          onClose={() => setChatOpen(false)}
+          onOpenTask={(taskId) => setOpenTaskId(taskId)}
+          onChanged={runtime.refresh}
+        />
+      )}
+
       {openTask && <TaskConsole task={openTask} onClose={() => setOpenTaskId(null)} />}
     </main>
   );
+}
+
+/** Keeps a long path readable in the narrow projects rail. */
+function shortPath(path?: string): string | undefined {
+  const parts = (path ?? '').split('/').filter((part) => part && part !== '.');
+  if (!parts.length) return undefined;
+  return parts.length <= 2 ? parts.join('/') : `…/${parts.slice(-2).join('/')}`;
 }
 
 /** Rough visual progress per stage — the pipeline has no better signal to offer. */

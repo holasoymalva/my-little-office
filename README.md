@@ -45,7 +45,8 @@ Fill in `.env` with at least one provider key:
 | Grok | `XAI_API_KEY` | console.x.ai |
 
 Optionally `LINEAR_API_KEY` (Linear → Settings → Security & access → API keys)
-to pull issues straight into the office.
+to pull issues straight into the office, and `CHAT_PROVIDER` / `CHAT_MODEL` to
+choose which model answers in the office chat.
 
 Then check the wiring before spending any tokens:
 
@@ -76,14 +77,28 @@ command is not running.
 
 Everything the agents need lives in [`super-agent.config.json`](super-agent.config.json).
 
-**Projects** are the repositories agents may work on:
+**Projects** are the repositories agents may work on. The quickest way to add
+one is from the dashboard: open **PROJECTS → MANAGE** and either
+
+- **A PATH ON THIS MACHINE** — type the path of a git checkout on the machine
+  running the runtime (`~/code/my-app` works), or
+- **CLONE FROM GITHUB** — paste a clone URL for a repository that is not here
+  yet,
+
+then hit **DETECT**. The runtime reads the project — cloning a shallow throwaway
+copy for a URL — and fills in the remote, the default branch, the install
+command and the checks it can find, for Node, Python, Go, Rust, Make, Swift
+packages and Xcode projects. All you do is confirm them. Saving writes the
+project into `super-agent.config.json`, so the file stays the single source of
+truth and you can still edit it by hand:
 
 ```jsonc
 {
   "id": "web-app",
   "name": "Web App",
-  "repo": "https://github.com/you/web-app.git", // or "path": "../web-app"
+  "path": "~/code/web-app",                      // or "repo": "https://github.com/you/web-app.git"
   "baseBranch": "main",
+  "source": "remote",                            // "local" clones your checkout instead of origin
   "setup": ["npm install --no-audit --no-fund"], // run once per workspace
   "verify": ["npm run lint", "npm test"],        // the definition of "it works"
   "conventions": "Guidance handed to the agent for this codebase."
@@ -95,7 +110,11 @@ check fails, the agent gets the output and up to two repair attempts before the
 task is marked failed.
 
 If you give a project a `path`, the runtime reads that checkout's `origin` and
-clones *from the remote* — your working tree is never touched.
+clones *from the remote* — your working tree is never touched. Set
+`"source": "local"` to clone the checkout itself instead, which is what you want
+while you are iterating locally: commits you have not pushed yet are part of what
+the agent works on. Either way the pull request still targets the real remote,
+and uncommitted changes in your working tree are never copied.
 
 **Agents** map the office characters onto models and personalities:
 
@@ -111,6 +130,44 @@ clones *from the remote* — your working tree is never touched.
 
 You can override the provider per task from the composer, so the same character
 can run on Grok today and Gemini tomorrow.
+
+### Xcode and iOS projects
+
+An Xcode project is detected like any other, and the suggested check is a real
+build:
+
+```
+xcodebuild -project MyApp.xcodeproj -scheme "MyApp" \
+  -destination 'generic/platform=iOS Simulator' -configuration Debug \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+`xcodebuild` needs a full Xcode rather than the command line tools. If
+`xcode-select -p` points at `/Library/Developer/CommandLineTools`, the suggested
+command carries `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`
+itself, which works without `sudo`. Xcode builds are also slow, so raise
+`commandTimeoutMs` in the config — 900000 (15 minutes) is a sane floor for a
+cold build.
+
+## Talking to the office
+
+**CHAT WITH THE TEAM** opens a conversation with the office manager. Describe
+work the way you would in Slack and it picks the teammate whose skills fit,
+writes the brief and dispatches the task — the same task the composer would have
+created, visible on the board straight away:
+
+> **you** — el checkout revienta cuando el carrito está vacío, que alguien lo vea
+>
+> **manager** — Se lo asigné a TESS: reproduce el caso del carrito vacío, añade el
+> test y arregla la causa. → *TESS · Fix empty-cart checkout crash · Planning*
+
+It can also register a project for you — from a path (*"add the project at
+~/code/my-app"*) or from a URL (*"clone github.com/me/my-app and add it"*) —
+tell you what the board is doing, and cancel a task. When a request is too vague
+to implement it asks one question instead of guessing.
+
+The chat runs on the first provider with a key, in the order ChatGPT → Grok →
+Gemini. Pin it with `CHAT_PROVIDER=gemini` and `CHAT_MODEL=...` in `.env`.
 
 ## What an agent can and cannot do
 
