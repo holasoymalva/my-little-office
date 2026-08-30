@@ -32,6 +32,8 @@ export const officeConfig = {
     { name: 'Web App', icon: '</>', detail: '12 active tasks', active: true },
     { name: 'API Platform', icon: 'API', detail: '8 active tasks' },
     { name: 'Mobile Client', icon: 'APP', detail: '5 active tasks' },
+    { name: 'Linear Integration', icon: 'LIN', detail: '3 active tasks' },
+    { name: 'MacBook Client', icon: 'LAP', detail: '2 active tasks' },
   ],
   goal: {
     current: 27,
