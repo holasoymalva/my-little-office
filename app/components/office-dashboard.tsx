@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties } from 'react';
 import type { OfficeConfig } from '../office.types';
 import type { Task, TaskStep } from '../lib/runtime';
@@ -14,6 +14,11 @@ import { TaskConsole } from './task-console';
 type ThemeStyle = CSSProperties & Record<`--${string}`, string>;
 
 const DONE_STAGES = new Set(['done']);
+
+/** The formatted date never changes while the dashboard is open, so nothing to subscribe to. */
+function subscribeToNothing(): () => void {
+  return () => {};
+}
 
 function stageTone(stage: Task['stage']): string {
   if (stage === 'done') return 'ok';
@@ -42,10 +47,16 @@ export function OfficeDashboard({ config }: { config: OfficeConfig }) {
   const [chatOpen, setChatOpen] = useState(false);
 
   const selected = config.agents.find((agent) => agent.id === selectedId) ?? config.agents[0];
-  const today = useMemo(
-    () => new Intl.DateTimeFormat(config.system.locale, { weekday: 'short', day: '2-digit', month: 'short' }).format(new Date()),
+  // The date is whatever day it is where the reader is sitting, which the server
+  // cannot know: formatting it during SSR puts a UTC date in the HTML, and
+  // hydration then fails against the browser's own timezone. The server snapshot
+  // is empty and the real date arrives on the client, where the answer is right.
+  const readToday = useCallback(
+    () => new Intl.DateTimeFormat(config.system.locale, { weekday: 'short', day: '2-digit', month: 'short' })
+      .format(new Date()),
     [config.system.locale],
   );
+  const today = useSyncExternalStore(subscribeToNothing, readToday, () => '');
 
   const tasks = runtime.tasks;
   const openTask = tasks.find((task) => task.id === openTaskId) ?? null;
